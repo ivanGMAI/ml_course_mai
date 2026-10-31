@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Titanic · Защита лабораторной №2</title>
+<style>
+:root{--bg:#FFF3E8;--ink:#302820;--accent:#EF8B3A;--paper:#FFFCF8;--teal:#398D49;--gray:#85827D;--red:#B6534C;--muted:#73675C}
+*{box-sizing:border-box}body{margin:0;background:#e5d8cc;color:var(--ink);font-family:Arial,"DejaVu Sans",sans-serif;overflow:hidden}button{font:inherit;cursor:pointer}#viewport{position:fixed;inset:0;display:grid;place-items:center}#stage{position:absolute;left:50%;top:50%;width:1600px;height:900px;flex:none;background:var(--bg);overflow:hidden;transform-origin:center;box-shadow:0 16px 100px #30282012}.slide{position:absolute;inset:0;display:none}.slide.active{display:block}.slide svg{display:block;width:1600px;height:900px;font-family:Arial,"DejaVu Sans",sans-serif}text{fill:var(--ink);font-variant-numeric:tabular-nums}text.muted{fill:var(--muted)}.eyebrow{font-size:17px;letter-spacing:3px;font-weight:600}.title{font-size:55px;font-weight:700;letter-spacing:-2px}.lead{font-size:25px}.big{font-size:100px;font-weight:700;letter-spacing:-4px}.medium{font-size:42px;font-weight:700;letter-spacing:-1px}.label{font-size:23px}.small{font-size:19px}.tiny{font-size:16px}.num{font-size:32px;font-weight:600}.buttonText{font-size:19px}.svg-button{cursor:pointer;outline:none}.svg-button:hover rect,.svg-button:focus-visible rect{stroke:var(--ink);stroke-width:2}.svg-button:focus-visible{outline:none}.cm-cell{cursor:pointer}.cm-cell:focus-visible rect{stroke:var(--ink);stroke-width:4}.note{font-size:21px;fill:var(--muted)}
+.numeric{font-variant-numeric:tabular-nums}.slide svg{touch-action:manipulation}#live{position:absolute;left:-10000px}
+@media(prefers-reduced-motion:reduce){*{animation-duration:0ms!important;transition-duration:0ms!important}}
+@media print{body{overflow:visible;background:var(--bg)}#viewport{position:static;display:block}#stage{position:relative;left:0;top:0;transform:none!important;box-shadow:none;width:100%;height:auto;overflow:visible}.slide{position:relative;display:block!important;page-break-after:always;width:100%;height:auto}.slide svg{width:100%;height:auto}#controls{display:none}@page{size:landscape;margin:0}}
+</style>
+</head>
+<body><div id="viewport"><main id="stage" aria-label="Презентация лабораторной работы Titanic">
+<div id="slides"></div>
+
+<div id="live" aria-live="polite" aria-atomic="true"></div></main></div>
+<script id="presentation-data" type="application/json">/*__DATA__*/</script>
+<script>
+'use strict';
+const D=JSON.parse(document.getElementById('presentation-data').textContent);
+const C={bg:'#FFF3E8',ink:'#302820',orange:'#EF8B3A',paper:'#FFFCF8',teal:'#398D49',gray:'#85827D',red:'#B6534C',muted:'#73675C',pale:'#E9D9CA',lightTeal:'#E1EFDA',lightRed:'#F1D8D1'};
+const titles=['Данные','Разделение','Закономерности','Подготовка','Простейшая модель','Пять моделей и выбор','Итоговая проверка','Важность признаков','Ошибки','Выводы'];
+const steps=[5,3,3,7,3,6,7,3,8,3];
+let slide=0,step=0,matrixModel='Gradient Boosting',matrixCell=-1,replayTimer=0;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)');
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>Number(n).toFixed(3).replace('.',',');
+const pct=n=>(n*100).toFixed(1).replace('.',',')+'%';
+function t(x,y,s,cls='label',fill,anchor='start'){return `<text x="${x}" y="${y}" class="${cls}"${fill?` style="fill:${fill}"`:''} text-anchor="${anchor}">${esc(s)}</text>`}
+function rect(x,y,w,h,fill,rx=0,extra=''){return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" ${extra}/>`}
+function line(x1,y1,x2,y2,color=C.pale,extra=''){return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2" ${extra}/>`}
+function move(key,x,y,content){return `<g data-motion="${key}" style="transform:translate(${x}px,${y}px)">${content}</g>`}
+function grow(key,x,y,w,h,ratio,color,rx=4){return move(key+'-pos',x,y,`<rect data-motion="${key}-bar" style="transform:scaleX(${ratio})" width="${w}" height="${h}" rx="${rx}" fill="${color}"/>`)}
+function base(i,title,subtitle){return t(76,133,title,'title')+(subtitle?t(79,184,subtitle,'lead',C.muted):'')}
+function bottom(s){return ''}
+function dot(key,x,y,color,r=5,extra=''){return move(key,x,y,`<circle r="${r}" fill="${color}" ${extra}/>`)}
+function legend(x,y,label,color){return `<circle cx="${x}" cy="${y-7}" r="6" fill="${color}"/>`+t(x+18,y,label,'small',C.muted)}
+function modelRank(which){const arr=[...D.models].sort((a,b)=>b[which]-a[which]);let out='';const start=275,gap=68,x=418,w=855;
+ if(which==='test'){const xx=x+w*.70;out+=line(xx,233,xx,694,C.red,'stroke-dasharray="6 7"')+t(xx,222,'F1 > 0,70','small',C.red,'middle')}
+ arr.forEach((m,j)=>{let y=start+j*gap;const chosen=m.name==='Gradient Boosting',best=m.name==='KNN'&&which==='test';let color=chosen?C.orange:best?C.teal:C.gray;out+=move('rank-'+m.name,0,y,t(79,4,m.name,'label',chosen?C.ink:C.muted)+rect(x,-21,w,31,C.paper,4)+grow('rank-fill-'+m.name,x,-21,w,31,m[which],color)+move('rank-number-'+m.name,x+w*m[which]+18,4,t(0,0,fmt(m[which]),'num',color)));if(which==='test'&&m.test>.7)out+=t(1485,y+3,'✓','label',C.teal);if(which==='cv')out+=t(1460,y+3,'± '+fmt(m.std),'small',C.muted,'end');});return out;}
+function s1(k){let o=base(0,'Titanic: кто выживет?','Бинарная классификация пассажиров');
+ if(k<2){o+=t(83,315,'891','big')+t(87,354,'пассажир','label',C.muted);for(let i=0;i<891;i++){const col=k===0?C.gray:(i<549?C.gray:C.teal);o+=dot('all-'+i,460+(i%45)*22,257+Math.floor(i/45)*21,col,6)}o+=t(83,458,k?'549':'12','medium',k?C.gray:C.ink)+t(85,494,k?'погибших':'исходных столбцов','label',C.muted)+t(83,594,k?'342':'0 / 1','medium',k?C.teal:C.ink)+t(85,630,k?'выживших':'исход пассажира','label',C.muted);o+=bottom(k?'61,6% погибших · 38,4% выживших':'Цель — по характеристикам пассажира предсказать Survived.');return o;}
+ const vals={PassengerId:['1','2','3'],Survived:['0','1','1'],Pclass:['3','1','3'],Name:['Braund…','Cumings…','Heikkinen…'],Sex:['male','female','female'],Age:['22','38','26'],SibSp:['1','1','0'],Parch:['0','0','0'],Ticket:['A/5 21171','PC 17599','STON/O2…'],Fare:['7,25','71,28','7,93'],Cabin:['—','C85','—'],Embarked:['S','C','S']};
+ const explain={PassengerId:'идентификатор',Name:'уникальные имена',Ticket:'значения и группы',Cabin:'77,1% пропусков',Survived:'правильный ответ',Pclass:'класс билета',Sex:'пол',Age:'возраст',SibSp:'близкие на борту',Parch:'родители / дети',Fare:'стоимость',Embarked:'порт посадки'};
+ if(k===2||k===3){o+=t(79,272,k===2?'Все 12 столбцов':'Отбираем признаки','medium')}else{o+=t(79,269,'7 признаков → в модель','medium',C.teal)}
+ D.columns.forEach((name,i)=>{let x,y,w,h;if(k===2||k===3){x=76+i*121;y=325;w=115;h=235}else{let idx=D.features.indexOf(name);w=180;h=110;if(idx>=0){x=79+(idx%4)*194;y=309+Math.floor(idx/4)*132}else if(name==='Survived'){x=79;y=623;w=761;h=90}else{idx=['PassengerId','Name','Ticket','Cabin'].indexOf(name);x=1740+idx*180;y=325;w=115;h=235}}
+ const used=D.features.includes(name),target=name==='Survived';let content=rect(0,0,w,h,k>=3?(used?C.lightTeal:target?'#F9DFC5':C.lightRed):C.paper,9);
+ content+=t(k<=3?w/2:16, k<=3?38:36,name,k<=3?'tiny':'label',k>=3?(used?C.teal:target?C.orange:C.red):C.ink,k<=3?'middle':'start');
+ if(k<=3){vals[name].forEach((v,j)=>content+=t(w/2,95+j*51,v,'tiny',C.muted,'middle'));content+=line(8,56,w-8,56)}else{content+=t(16,72,explain[name],target?'label':'small',C.muted);}
+ o+=move('column-'+name,x,y,content);
+ });
+ o+=bottom(k===2?'Далее отделим входные признаки от ответа и лишних подробностей.':'Имена, билеты и каюты исключены для простоты и снижения риска запоминания.');return o;}
+function s2(k){let o=base(1,'Разделяем, сохраняя классы','80 / 20 · стратификация · random_state = 42');
+ if(k===0)o+=t(80,270,'891 пассажир','medium');else{o+=t(79,248,'TRAIN','eyebrow',C.orange)+t(79,355,'712','big')+t(1070,248,k===2?'TEST · ОТЛОЖЕН':'TEST','eyebrow',C.muted)+t(1065,355,'179','big',C.muted);if(k===2)o+=rect(1030,375,483,301,'none',16,'data-frame="holdout" stroke="#85827D" stroke-width="2" stroke-dasharray="8 8"')}
+ for(let i=0;i<891;i++){const isTrain=i<712,index=isTrain?i:i-712;const dead=isTrain?index<439:index<110;let x,y;if(!k){x=80+(i%45)*24;y=315+Math.floor(i/45)*18}else if(isTrain){x=86+(index%40)*21;y=391+Math.floor(index/40)*16}else{x=1066+(index%18)*24;y=407+Math.floor(index/18)*25}o+=dot('split-'+i,x,y,dead?C.gray:C.teal,k?5:5.5)}
+ if(k){o+=legend(85,723,'Погибли: 61,7%',C.gray)+legend(390,723,'Выжили: 38,3%',C.teal)+legend(1060,723,'61,5%',C.gray)+legend(1280,723,'38,5%',C.teal)}
+ o+=bottom(k===2?'Test открываем только для финальной оценки.':'Доли классов в train и test почти одинаковые.');return o;}
+function s3(k){const d=D.eda[k];let o=base(2,'Что связано с выживанием',d.title+' · Только train · 712 пассажиров');
+ const x0=180,y0=662,H=320,total=1200,slot=total/d.labels.length;for(let i=0;i<=4;i++){const yy=y0-H*i/4;o+=line(130,yy,1485,yy,'#30282012')+t(112,yy+6,i*25+'%','tiny',C.muted,'end')}
+ d.labels.forEach((l,j)=>{let x=x0+j*slot+slot/2,bw=Math.min(190,slot*.60);o+=move('eda-'+k+'-'+j,x,0,move('eda-bar-pos-'+k+'-'+j,0,y0,`<rect data-motion="eda-${k}-${j}-bar" x="${-bw/2}" y="${-H}" width="${bw}" height="${H}" rx="5" fill="${C.teal}" style="transform:scaleY(${d.values[j]})"/>`)+t(0,y0-H*d.values[j]-24,pct(d.values[j]),'medium',C.teal,'middle')+t(0,704,l,'label',C.ink,'middle')+t(0,735,'n = '+d.n[j],'small',C.muted,'middle'))});
+ // Bars grow upward from the baseline; actual height = H * survival rate.
+ o+=t(1475,281,k===2?'Возраст известен у 575 из 712':'Доля выживших','small',C.muted,'end');o+=bottom(d.note);return o;}
+function s4(k){let o=base(3,'Подготовка данных',k<3?'Возраст · медиана по train':k<5?'One-Hot Encoding':'Масштабирование · SVM и KNN');
+ if(k<3){const sorted=[28,28,28.5,28.5,29,29,29],order=k===0?[5,2,0,4,3,1,6]:[0,1,2,3,4,5,6];
+ o+=t(80,277,'575 возрастов · фрагмент','medium')+t(57,401,'…','label',C.muted)+t(1137,401,'…','label',C.muted);
+ sorted.forEach((v,i)=>{let slot=order.indexOf(i),x=80+slot*151,y=338,selected=k>0&&i===3;o+=move('median-age-'+i,x,y,rect(0,0,132,100,selected?C.lightTeal:C.paper,12));if(i!==3)o+=move('median-age-text-'+i,x+66,y+63,t(0,0,String(v).replace('.',','),'num',selected?C.teal:C.ink,'middle'))});
+ o+=t(1205,370,k===0?'Сортируем':'288 / 575','medium',C.orange)+t(1205,416,k===0?'по возрастанию':'середина ряда','label',C.muted);
+ [22,null,38,26].forEach((v,i)=>o+=move('missing-cell-'+i,80+i*238,625,rect(0,0,205,120,v===null?(k===2?C.lightTeal:'#F9DFC5'):C.paper,12)+(v===null?(k<2?t(102,78,'—','medium',C.orange,'middle'):''):t(102,78,v,'medium',C.ink,'middle'))));
+ o+=t(80,590,'Age','label');
+ let x=k===2?420:80+order.indexOf(3)*151+66,y=k===2?703:401;
+ o+=move('median-value',x,y,t(0,0,'28,5','medium',k>0?C.teal:C.ink,'middle'));
+ }else if(k<5){o+=move('category',100,k===3?388:320,rect(0,0,290,140,C.paper,16)+t(145,48,'Sex','label',C.muted,'middle')+t(145,102,'female','medium',C.ink,'middle'));if(k===4){o+=line(435,393,610,393,C.orange,'marker-end="url(#arrow)"');['Sex_female','Sex_male'].forEach((name,i)=>o+=move('onehot-'+i,690+i*352,320,rect(0,0,300,140,C.lightTeal,16)+t(150,46,name,'label',C.teal,'middle')+t(150,106,i===0?'1':'0','medium',C.ink,'middle')))}}
+ else{let scaled=k===6;o+=t(80,271,scaled?'Единый масштаб':'До преобразования','medium');if(scaled)o+=t(1505,271,'(x − μ) / σ','label',C.orange,'end');
+ const points=[-1.7,-1.3,-1,-.75,-.5,-.25,0,.12,.35,.6,.8,1.1,1.5];
+ ['Age','Fare'].forEach((name,row)=>{let y=425+row*240;o+=t(80,y-77,name,'medium',row?C.orange:C.teal)+line(200,y,1490,y,C.pale);if(scaled){[-2,-1,0,1,2].forEach(v=>o+=t(820+v*220,y+67,v,'small',C.muted,'middle'));o+=line(820,y-67,820,y+29,'#30282025','stroke-dasharray="4 6"')}
+ points.forEach((v,i)=>{let x=scaled?820+v*220:row?810+v*240:430+v*43,dy=Math.sin(i*1.8)*24;o+=dot('scale-point-'+row+'-'+i,x,y+dy,row?C.orange:C.teal,11)});
+ });}return o;}
+
+function s5(k){let o=base(4,'Точность 62%. Выживших не находит.','Dummy baseline · оценка только на test: 179 пассажиров');o+=t(79,274,k?'Раскрываем настоящие исходы':'Прогноз всем: «погиб»','medium');for(let i=0;i<179;i++){let missed=i>=110;let color=k&&missed?C.teal:C.gray;const x=99+(i%18)*37,y=330+Math.floor(i/18)*35;o+=dot('baseline-'+i,x,y,color,10,k&&missed?`stroke="${C.red}" stroke-width="3"`:'')}
+ o+=t(920,369,k===2?'61,5%':'179','big',k===2?C.ink:C.gray)+t(926,412,k===2?'Accuracy':'одинаковых прогнозов','label',C.muted);
+ if(k){o+=t(923,533,'69','medium',C.red)+t(1014,533,'выживших пропущены','label',C.red)+t(925,604,'110 погибших найдены верно','label',C.muted)}
+ if(k===2)o+=t(924,702,'F1 = 0','medium',C.red);o+=bottom(k?'Красный контур — выживший, которого baseline назвал погибшим.':'Baseline всегда выбирает наиболее частый класс обучающей выборки.');return o;}
+function treeIcon(x,y,key,mini=false){let o='';const w=mini?70:210,h=mini?80:170;[[w/2,0,w*.22,h*.45],[w/2,0,w*.78,h*.45],[w*.22,h*.45,w*.08,h],[w*.22,h*.45,w*.38,h],[w*.78,h*.45,w*.62,h],[w*.78,h*.45,w*.92,h]].forEach((a,i)=>o+=`<path data-line="${key}-${i}" d="M${a[0]} ${a[1]} L${a[2]} ${a[3]}" fill="none" stroke="${C.orange}" stroke-width="3"/>`);[[w/2,0],[w*.22,h*.45],[w*.78,h*.45],[w*.08,h],[w*.38,h],[w*.62,h],[w*.92,h]].forEach(([xx,yy])=>o+=`<circle cx="${xx}" cy="${yy}" r="${mini?6:10}" fill="${C.paper}" stroke="${C.ink}" stroke-width="2"/>`);return move(key,x,y,o)}
+function s6(k){let o=base(5,k===5?'Выбор по train':'Пять моделей',k===5?'Средний F1 · 5-fold CV':'');
+ if(k<5){const names=['Decision Tree','Random Forest','Gradient Boosting','SVM','KNN'],descs=['Вопрос за вопросом','200 деревьев','Исправляет ошибки','Разделяющая граница','5 ближайших соседей'];names.forEach((name,i)=>{if(i>k)return;let x=79+i*295,part=t(x,281,name,'label')+t(x,666,descs[i],'small');if(i===0)part+=treeIcon(x+20,368,'tree');if(i===1){for(let j=0;j<3;j++)part+=treeIcon(x+14+j*80,400,'forest-'+j,true);part+=t(x+127,578,'200','medium',C.orange,'middle')}if(i===2){for(let j=0;j<3;j++){part+=rect(x+12+j*80,405,61,73,j===2?C.lightTeal:C.paper,6)+t(x+42+j*80,452,j+1,'label',C.ink,'middle');if(j<2)part+=line(x+76+j*80,440,x+89+j*80,440,C.orange)}part+=`<path data-line="boost-loss" d="M${x+15} 570 Q${x+75} 580 ${x+100} 540 T${x+245} 510" stroke="${C.orange}" stroke-width="4" fill="none"/>`;}if(i===3){for(let j=0;j<14;j++)part+=dot('svm-'+j,x+30+(j%4)*54,370+Math.floor(j/4)*56,j<7?C.gray:C.teal,7);part+=`<path data-line="svm-boundary" d="M${x+10} 570 Q${x+140} 520 ${x+145} 380 T${x+260} 350" stroke="${C.orange}" stroke-width="4" fill="none"/>`;}if(i===4){const pts=[[80,40],[155,30],[170,105],[80,150],[30,105],[230,35],[230,175],[35,215]];part+=`<circle cx="${x+115}" cy="460" r="100" fill="none" stroke="${C.orange}" stroke-dasharray="6 5" stroke-width="2"/>`;pts.forEach(([xx,yy],j)=>{if(j<5)part+=`<path data-knn-line="${j}" d="M${x+115} 460 L${x+xx} ${370+yy}" fill="none" stroke="${C.orange}" stroke-width="2"/>`;part+=dot('knn-'+j,x+xx,370+yy,j%2?C.teal:C.gray,j<5?10:7,j<5?`data-neighbor="${j}" stroke="${C.orange}" stroke-width="2"`:'')});part+=dot('knn-query',x+115,460,C.orange,12)}o+=`<g data-method="${i}" data-entrance="method-${i}">${part}</g>`});}
+ else{o+=modelRank('cv')+t(1524,184,'Выбран: Gradient Boosting','label',C.orange,'end');}return o;}
+
+function s7(k){let o=base(6,'Финальная проверка','Test · 179 пассажиров');if(k===6){o+=`<g data-panel="test-ranking">${modelRank('test')}</g>`;return o}
+ const m=D.models[k],chosen=m.name==='Gradient Boosting',best=m.name==='KNN',passed=m.test>.7;
+ let panel=rect(100,233,640,564,'#FFFFFF',28)+t(140,302,m.name,'medium');
+ const x=280,y=393,w=190,h=152;panel+=t(x+w,345,'Прогноз','label',C.muted,'middle')+t(x+w/2,379,'0','label',C.gray,'middle')+t(x+w*1.5,379,'1','label',C.teal,'middle')+t(140,463,'Факт','label',C.muted)+t(252,y+h/2+9,'0','label',C.gray,'end')+t(252,y+h*1.5+9,'1','label',C.teal,'end');
+ m.cm.forEach((v,i)=>{let xx=x+(i%2)*w,yy=y+Math.floor(i/2)*h,error=i===1||i===2;panel+=`<g data-cell="${i}" data-value="${v}">`+rect(xx+4,yy+4,w-8,h-8,error?C.lightRed:i===3?C.lightTeal:'#E8E3DC',15)+t(xx+w/2,yy+46,['TN','FP','FN','TP'][i],'small',error?C.red:C.muted,'middle')+t(xx+w/2,yy+111,v,'medium',error?C.red:C.ink,'middle')+'</g>'});
+ panel+=t(855,285,chosen?'ВЫБРАН ПО CV':best?'ЛУЧШИЙ НА TEST':'F1 НА TEST','eyebrow',chosen?C.orange:best?C.teal:C.muted)+t(850,477,fmt(m.test),'big',chosen?C.orange:passed?C.teal:C.gray)+t(855,531,passed?'F1 > 0,70':'F1 ≤ 0,70','label',passed?C.teal:C.gray);
+ ['Accuracy','Precision','Recall'].forEach((label,i)=>{let xx=855+i*219;panel+=t(xx,653,label,'small',C.muted)+t(xx,710,fmt(m.metrics[i]),'medium')});
+ o+=`<g data-panel="method-${k}">${panel}</g>`;return o;}
+
+function s8(k){let names=Object.keys(D.importance),name=names[k],values=D.importance[name];let o=base(7,'На что опирается модель',name);let sorted=Object.entries(values).sort((a,b)=>b[1]-a[1]);sorted.forEach(([f,v],i)=>{let y=310+i*61;o+=move('imp-'+f,0,y,t(79,7,f,'label',f==='Sex'?C.teal:C.ink)+rect(300,-22,1040,33,C.paper,4)+grow('imp-fill-'+f,300,-22,1040,33,v/.6,f==='Sex'?C.teal:C.orange)+t(300+1040*v/.6+17,6,fmt(v),'num',f==='Sex'?C.teal:C.ink))});o+=bottom('Важность — полезность для модели, а не вероятность выживания и не доказательство причинности.');return o;}
+function errorChart(d){let o='';d.labels.forEach((l,i)=>{const y=320+i*62;o+=move('error-'+d.title+'-'+i,0,y,t(79,7,l,'label')+rect(340,-21,810,31,C.paper,4)+grow('error-fill-'+d.title+'-'+i,340,-21,810,31,d.rate[i]/.35,C.red)+t(340+810*d.rate[i]/.35+17,5,pct(d.rate[i]),'num',C.red)+t(1490,6,d.errors[i]+' из '+d.n[i],'small',C.muted,'end'))});return o;}
+function human(key,x,y,color,fallen=false){let body=`<ellipse cx="${fallen?105:0}" cy="8" rx="${fallen?128:43}" ry="9" fill="#30282012"/>`;
+ body+=`<g data-person="${key}" data-fall="${fallen}" style="transform:translateY(${fallen?-54:0}px) rotate(${fallen?90:0}deg)"><circle cx="0" cy="-224" r="29" fill="${color}"/><path d="M0 -178 L0 -88 M-69 -115 L0 -164 L69 -115 M0 -88 L-47 0 M0 -88 L47 0" stroke="${color}" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>`;return move(key,x,y,body)}
+function s9(k){let o=base(8,'Ошибки бустинга','Gradient Boosting');if(k===0){o+=t(80,412,'25','big',C.red)+t(80,476,'Пропущенные выжившие','label')+t(80,535,'FN · 36,2%','label',C.red)+t(920,412,'12','big',C.gray)+t(920,476,'Ложный прогноз выживания','label')+t(920,535,'FP · 10,9%','label',C.gray)+grow('fn-size',80,610,690,37,1,C.red)+grow('fp-size',920,610,690,37,12/25,C.gray)}
+ else if(k<=3){const d=D.errors[k-1];o+=t(80,260,d.title,'medium')+t(1490,260,'ошибки / размер группы','small',C.muted,'end')+errorChart(d)}
+ else{let ex=D.examples[k<6?0:1],reveal=k===5||k===7;o+=t(80,275,'№ '+ex.id,'medium')+t(80,320,ex.sex+' · '+ex.pclass+' класс','label',C.muted);o+=t(430,389,'Прогноз','label',C.muted,'middle')+human('prediction-'+ex.id,430,700,ex.pred?C.teal:C.gray,!ex.pred);if(reveal)o+=t(1050,389,'Факт','label',C.muted,'middle')+human('actual-'+ex.id,1050,700,ex.true?C.teal:C.red,!ex.true);o+=line(160,729,1460,729,C.pale)}return o;}
+
+function s10(k){let o=base(9,'Три вывода','');let body='';
+ if(k===0){const cx=405,cy=490,r=166;for(let i=0;i<5;i++){let a=-Math.PI/2+i*Math.PI*2/5+.04,b=a+Math.PI*2/5-.10;body+=`<path data-line="result-arc-${i}" d="M${cx+r*Math.cos(a)} ${cy+r*Math.sin(a)} A${r} ${r} 0 0 1 ${cx+r*Math.cos(b)} ${cy+r*Math.sin(b)}" fill="none" stroke="${i<4?C.teal:C.pale}" stroke-width="21" stroke-linecap="round"/>`}
+ body+=t(cx,522,'4 / 5','big',C.teal,'middle')+t(800,316,'F1 > 0,70','medium');['Random Forest','Gradient Boosting','SVM','KNN'].forEach((name,i)=>body+=`<g data-entrance="conclusion-model-${i}">${t(800,409+i*80,name,'medium')}</g>`);}
+ if(k===1){body+=rect(80,269,680,452,C.paper,24)+rect(800,269,720,452,C.paper,24)+t(125,333,'ВЫБОР ПО CV','eyebrow',C.orange)+t(125,416,'Gradient Boosting','medium')+t(120,580,'0,753','big',C.orange)+t(125,644,'F1 · train CV','label',C.muted)+t(845,333,'ЛИДЕР TEST','eyebrow',C.teal)+t(845,416,'KNN','medium')+t(840,580,'0,750','big',C.teal)+t(845,644,'F1 · локальный test','label',C.muted);}
+ if(k===2){body+=t(80,357,'Главная ошибка','medium')+t(80,448,'Пропуск выживших','title',C.red)+t(80,620,'25','big',C.red)+t(255,612,'выживших названы погибшими','label')+human('conclusion-person',1135,716,C.red,true)}
+ return o+`<g data-conclusion="${k}">${body}</g>`;}
+const renderers=[s1,s2,s3,s4,s5,s6,s7,s8,s9,s10];
+const sections=[];
+for(let i=0;i<10;i++){const el=document.createElement('section');el.className='slide';el.setAttribute('aria-label',(i+1)+'. '+titles[i]);el.dataset.slide=i+1;el.innerHTML=`<svg viewBox="0 0 1600 900" role="img" aria-label="${titles[i]}"></svg>`;$('#slides').append(el);sections.push(el)}
+const defs=`<defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6" fill="none" stroke="${C.orange}" stroke-width="1.5"/></marker></defs>`;
+const EASE='cubic-bezier(.22,.68,.12,1)',SLOW=1350;
+let direction=1;
+function animateElement(el,frames,options={}){return el.animate(frames,{duration:SLOW,easing:EASE,fill:'backwards',...options})}
+function textKey(el){return [el.getAttribute('x'),el.getAttribute('y'),el.getAttribute('text-anchor'),el.textContent].join('|')}
+function draw(animate=true,k=step){const section=sections[slide],svg=section.querySelector('svg'),previous=new Map(),texts=new Set([...svg.querySelectorAll('text')].map(textKey)),entrances=new Set([...svg.querySelectorAll('[data-entrance]')].map(el=>el.dataset.entrance)),people=new Set([...svg.querySelectorAll('[data-person]')].map(el=>el.dataset.person));
+ const previousPanel=svg.querySelector('[data-panel]'),outgoing=previousPanel?.cloneNode(true),oldPanelKey=previousPanel?.dataset.panel;
+ svg.querySelectorAll('[data-motion]').forEach(el=>previous.set(el.dataset.motion,{transform:getComputedStyle(el).transform,fill:el.firstElementChild?getComputedStyle(el.firstElementChild).fill:null}));
+ svg.innerHTML=defs+renderers[slide](k);section.dataset.step=k;
+ if(!animate||reduce.matches)return svg;
+ const panel=svg.querySelector('[data-panel]'),panelChanges=panel&&oldPanelKey!==panel.dataset.panel;
+ svg.querySelectorAll('[data-motion]').forEach((el,j)=>{const old=previous.get(el.dataset.motion),from=old?.transform,to=el.style.transform,child=el.firstElementChild,newFill=child?getComputedStyle(child).fill:null,key=el.dataset.motion;
+ if(old?.fill&&newFill&&old.fill!==newFill){const wave=key.startsWith('all-')?Math.max(0,+key.slice(4)-549)*4:key.startsWith('baseline-')?Math.max(0,+key.slice(9)-110)*10:j%12*28;animateElement(child,[{fill:old.fill},{fill:newFill}],{duration:1250,delay:wave})}
+ if(key==='median-value'&&slide===3&&k===2){animateElement(el,[{transform:from,offset:0},{transform:'translate(595px,290px)',offset:.28},{transform:'translate(420px,715px)',offset:.82},{transform:to,offset:1}],{duration:1650});return}
+ let frames=null,delay=key.startsWith('split-')?(+key.slice(6)%25)*12:0;
+ if(old&&from!=='none'&&from!==to)frames=[{transform:from},{transform:to}];
+ else if(!old){if(key.endsWith('-bar'))frames=[{transform:to.startsWith('scaleY')?'scaleY(0)':'scaleX(0)'},{transform:to}];else if(key.startsWith('rank-number-'))frames=[{transform:'translate(436px,4px)',opacity:0},{transform:to,opacity:1}];else frames=[{opacity:0},{opacity:1}];}
+ if(frames)animateElement(el,frames,{delay,duration:key.includes('rank-')?1700:SLOW});
+ });
+ svg.querySelectorAll('text').forEach((el,j)=>{if(!texts.has(textKey(el)))animateElement(el,[{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'translateY(0px)'}],{duration:1050,delay:j%7*32})});
+ svg.querySelectorAll('[data-entrance]').forEach(el=>{if(!entrances.has(el.dataset.entrance))animateElement(el,[{opacity:0,transform:'translateY(75px)'},{opacity:1,transform:'translateY(0px)'}],{duration:1400,delay:el.dataset.entrance.startsWith('conclusion')?+el.dataset.entrance.slice(-1)*170:0})});
+ svg.querySelectorAll('[data-line]').forEach((el,i)=>{if(slide===5&&k<5&&el.closest('[data-method]')?.dataset.method!==String(k))return;const len=el.getTotalLength();animateElement(el,[{strokeDasharray:len,strokeDashoffset:len},{strokeDasharray:len,strokeDashoffset:0}],{duration:1350,delay:i%7*65})});
+ svg.querySelectorAll('[data-knn-line]').forEach((el,i)=>{const len=el.getTotalLength();animateElement(el,[{strokeDasharray:len,strokeDashoffset:len,opacity:0},{strokeDasharray:len,strokeDashoffset:0,opacity:1}],{duration:850,delay:700+i*300})});
+ svg.querySelectorAll('[data-neighbor]').forEach((el,i)=>animateElement(el,[{opacity:0,r:4},{opacity:1,r:10}],{duration:650,delay:550+i*300}));
+ svg.querySelectorAll('[data-cell]').forEach((el,i)=>animateElement(el,[{opacity:0,transform:'translateX(-1000px)',offset:0},{opacity:1,transform:'translateX(-1000px)',offset:.08},{opacity:1,transform:'translateX(0px)',offset:1}],{duration:400,delay:1450+i*425}));
+ svg.querySelectorAll('[data-frame]').forEach(el=>animateElement(el,[{opacity:0},{opacity:1}],{delay:1400,duration:800}));
+ svg.querySelectorAll('[data-person]').forEach(el=>{if(!people.has(el.dataset.person)&&el.dataset.fall==='true')animateElement(el,[{transform:'translateY(0px) rotate(0deg)',offset:0},{transform:'translateY(-5px) rotate(-7deg)',offset:.25},{transform:'translateY(-58px) rotate(92deg)',offset:.84},{transform:'translateY(-54px) rotate(90deg)',offset:1}],{duration:1750,delay:220})});
+ const conclusion=svg.querySelector('[data-conclusion]');if(conclusion)animateElement(conclusion,[{opacity:0,transform:'translateY(55px)'},{opacity:1,transform:'translateY(0px)'}],{duration:1450});
+ if(panelChanges){animateElement(panel,[{transform:`translateX(${direction*1700}px)`,opacity:.25},{transform:'translateX(0px)',opacity:1}],{duration:1450,delay:outgoing?180:0});if(outgoing){outgoing.dataset.outgoing='true';svg.append(outgoing);animateElement(outgoing,[{transform:'translateX(0px)',opacity:1},{transform:`translateX(${-direction*1700}px)`,opacity:0}],{duration:1250,fill:'forwards'}).finished.then(()=>outgoing.remove()).catch(()=>{})}}
+ return svg;}
+function go(s,k=0,animate=true){clearTimeout(replayTimer);const old=slide*100+step;slide=Math.max(0,Math.min(9,s));step=Math.max(0,Math.min(steps[slide]-1,k));direction=slide*100+step>=old?1:-1;sections.forEach((el,i)=>{el.classList.toggle('active',i===slide);el.setAttribute('aria-hidden',String(i!==slide));el.inert=i!==slide});draw(animate);$('#live').textContent='Слайд '+(slide+1)+'. '+titles[slide]+'. Шаг '+(step+1);history.replaceState(null,'','#'+(slide+1)+'.'+step)}
+function next(){if(step<steps[slide]-1)go(slide,step+1);else if(slide<9)go(slide+1,0)}
+function prev(){if(step>0)go(slide,step-1);else if(slide>0)go(slide-1,steps[slide-1]-1)}
+function replay(){clearTimeout(replayTimer);if(reduce.matches){draw(false);return}if(step){draw(false,step-1);replayTimer=setTimeout(()=>draw(true),60)}else{sections[slide].querySelector('svg').innerHTML='';draw(true)}}
+async function fullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen()}catch(e){$('#live').textContent='Полный экран недоступен в этом браузере.'}}
+function action(target){const a=target.closest('[data-action]');if(!a)return false;const v=a.dataset.action;if(v.startsWith('step:'))go(slide,+v.slice(5));return true}
+$('#slides').addEventListener('click',e=>{if(!action(e.target))next()});$('#slides').addEventListener('contextmenu',e=>{e.preventDefault();prev()});$('#slides').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest('[data-action]')){e.preventDefault();e.stopPropagation();action(e.target)}});
+document.addEventListener('keydown',e=>{if(e.altKey||e.ctrlKey||e.metaKey)return;const key=e.key;if(['ArrowRight','PageDown',' '].includes(key)){e.preventDefault();next()}else if(['ArrowLeft','PageUp'].includes(key)){e.preventDefault();prev()}else if(key==='Home'){e.preventDefault();go(0,0)}else if(key==='End'){e.preventDefault();go(9,steps[9]-1)}else if(/^[0-9]$/.test(key)){go(key==='0'?9:+key-1,0)}else if(key.toLowerCase()==='r')replay();else if(key.toLowerCase()==='f')fullscreen()});
+function fit(){const scale=Math.min(innerWidth/1600,innerHeight/900);$('#stage').style.transform=`translate(-50%,-50%) scale(${scale})`}
+window.addEventListener('resize',fit);fit();
+function readHash(){const match=location.hash.match(/^#(\d+)\.(\d+)$/);if(match)go(+match[1]-1,+match[2],false);else go(0,0,false)}window.addEventListener('hashchange',readHash);readHash();
+let touchX=null;document.addEventListener('touchstart',e=>touchX=e.touches[0].clientX,{passive:true});document.addEventListener('touchend',e=>{if(touchX===null)return;const dx=e.changedTouches[0].clientX-touchX;if(Math.abs(dx)>70){if(dx<0)next();else prev()}touchX=null},{passive:true});
+window.deck={go,next,prev,replay,get state(){return {slide,step}},steps,data:D};
+</script></body></html>

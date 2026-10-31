@@ -1,0 +1,6 @@
+Titanic Dataset. Yasser H., Kaggle.
+https://www.kaggle.com/datasets/yasserh/titanic-dataset
+License listed by source: CC0: Public Domain.
+https://creativecommons.org/publicdomain/zero/1.0/
+Подготовка: сохранены Pclass, Sex, Age, SibSp, Parch, Fare, Embarked и Survived.
+Name, Ticket, Cabin и исходный PassengerId исключены; добавлен Id.
